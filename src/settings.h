@@ -1,0 +1,6 @@
+#pragma once
+
+#define BUFFER_WIDTH 512
+#define BUFFER_HEIGHT 272
+#define SCREEN_WIDTH 480
+#define SCREEN_HEIGHT BUFFER_HEIGHT

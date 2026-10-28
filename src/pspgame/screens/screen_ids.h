@@ -1,0 +1,6 @@
+#ifndef SCREEN_IDS_H
+#define SCREEN_IDS_H
+
+enum { SCR_INTRO, SCR_LOADING, SCR_MENU, SCR_GAME, SCR_COUNT };
+
+#endif

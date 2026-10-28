@@ -1,0 +1,9 @@
+*.o
+*.sfo
+*.psp
+*.pbp
+*.SFO
+*.PSP
+*.PBP
+*.efl
+*.ELF

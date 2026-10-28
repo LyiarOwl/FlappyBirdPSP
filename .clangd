@@ -1,0 +1,24 @@
+CompileFlags:
+  BuiltinHeaders: Clangd
+  Add:
+    - -Wall
+    - -Wextra
+    - -std=c11
+    - -x
+    - c
+    - "-target"
+    - "mips-sony-psp"
+    - "--sysroot=/home/lyiar/pspdev/psp"
+    - -I/home/lyiar/pspdev/special_projects/04.2_flappy_bird/src
+    - -I/home/lyiar/pspdev/psp/sdk/include
+    - -I/home/lyiar/pspdev/psp/include
+
+Index:
+  Background: Build
+  StandardLibrary: true
+
+InlayHints:
+  BlockEnd: true
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
