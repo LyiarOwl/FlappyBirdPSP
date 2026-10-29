@@ -90,7 +90,7 @@ static bool handle_ground_collision(Bird *bird)
 
 static f32 delta = 1.f / 60.f;
 
-Bird new_bird(Texture2D *texture, Phw_Vec2 pos, void *screen)
+Bird new_bird(Texture2D *texture, float x, float y, void *screen)
 {
     Bird bird = { 0 };
 
@@ -99,9 +99,9 @@ Bird new_bird(Texture2D *texture, Phw_Vec2 pos, void *screen)
     bird.max_vert_speed = 5.f;
     bird.jump_impulse   = 2.f;
 
-    Texture_Region frames[3] = { texture_region_create(texture, 115, 433, 17, 12),
-                                 texture_region_create(texture, 115, 407, 17, 12),
-                                 texture_region_create(texture, 115, 381, 17, 12) };
+    Texture_Region frames[3] = { texture_region_create(texture, 423, 9, 19, 14),
+                                 texture_region_create(texture, 455, 9, 19, 14),
+                                 texture_region_create(texture, 487, 9, 19, 14) };
 
     bird.fly_anim = animation_new(0.1f, frames, 3);
     animation_set_play_mode(&bird.fly_anim, ANIM_PLAY_MODE_NORMAL);
@@ -111,8 +111,10 @@ Bird new_bird(Texture2D *texture, Phw_Vec2 pos, void *screen)
 
     bird.body = phw_world_create_character_body(&world, phw_create_circle_coll_shape(4.f));
     bird.body->user_layer_mask = LAYER_MASK_BIRD;
-    phw_body_set_position(bird.body, pos);
-    bird.initial_position                 = pos;
+
+    phw_body_set_position(bird.body, (Phw_Vec2){ x, y });
+    bird.initial_position = (Phw_Vec2){ x, y };
+
     bird.score_region_collision_observers = observers_list_new(2);
 
     return bird;
@@ -144,6 +146,10 @@ void update_bird(Bird *bird)
     }
 
     Phw_Vec2 pos = phw_body_get_position(bird->body);
+    if (pos.y < 0) {
+        g->game_over = true;
+    }
+
     pos.y += bird->vel.y;
     phw_body_set_position(bird->body, pos);
 }
@@ -156,7 +162,7 @@ void draw_bird(Bird *bird)
 
     Game_Screen *g = bird->screen;
     if (!g->start) {
-        bird->animation_elapsed += delta;
+        bird->animation_elapsed += delta * 0.5f;
         bird->sprite.region =
             *animation_get_keyframe_looping(&bird->fly_anim, bird->animation_elapsed, true);
     } else if (!g->game_over) {
@@ -176,12 +182,15 @@ void free_bird(Bird *bird)
     animation_free(&bird->fly_anim);
 }
 
-void set_bird_position(Bird *bird, Phw_Vec2 pos) { phw_body_set_position(bird->body, pos); }
+void set_bird_position(Bird *bird, float x, float y)
+{
+    phw_body_set_position(bird->body, (Phw_Vec2){ x, y });
+}
 
 Phw_Vec2 get_bird_position(const Bird *bird) { return phw_body_get_position(bird->body); }
 
 void reset_bird(Bird *bird)
 {
     bird->vel = (Phw_Vec2){ 0 };
-    set_bird_position(bird, bird->initial_position);
+    set_bird_position(bird, bird->initial_position.x, bird->initial_position.y);
 }

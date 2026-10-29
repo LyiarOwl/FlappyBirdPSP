@@ -211,6 +211,7 @@ static void update(void *ctx, Screen_Manager *m)
     if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
         current_btn->region = *current_btn_up;
         current_btn->y -= 2.f;
+        g->selector_anim_elapsed = 0.f;
     }
 
     if (input_is_btn_up(&input, PSP_CTRL_CROSS))
@@ -256,6 +257,5 @@ static void exit_screen(void *ctx, Screen_Manager *m)
 Screen_Desc menu_screen_init(Menu_Screen *s)
 {
     s->desc      = (Screen_Desc){ s, NULL, update, draw, exit_screen, load };
-    s->load_step = 0;
     return s->desc;
 }

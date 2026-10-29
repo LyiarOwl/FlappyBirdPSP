@@ -26,7 +26,7 @@ typedef struct bird
     Phw_Character_Body *body;
 } Bird;
 
-Bird new_bird(Texture2D *, Phw_Vec2 pos, void *screen);
+Bird new_bird(Texture2D *, float x, float y, void *screen);
 
 void update_bird(Bird *);
 
@@ -34,7 +34,7 @@ void draw_bird(Bird *);
 
 void free_bird(Bird *);
 
-void set_bird_position(Bird *, Phw_Vec2);
+void set_bird_position(Bird *, float x, float y);
 
 Phw_Vec2 get_bird_position(const Bird *);
 

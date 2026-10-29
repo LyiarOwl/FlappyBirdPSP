@@ -15,6 +15,7 @@
 #include "pspgame/game_screens.h"
 #include "pspgame/globals.h"
 #include "pspgame/screen_manager.h"
+#include "pspgame/screens/game_screen.h"
 #include "pspgame/screens/loading_screen.h"
 #include "pspgame/screens/menu_screen.h"
 #include "psptypes.h"
@@ -50,7 +51,6 @@ void init(void)
 
 int main(void)
 {
-
     init();
 
     input        = input_new(true);
@@ -60,23 +60,27 @@ int main(void)
         (Phw_Rect){ {0, 0}, {SCREEN_WIDTH, SCREEN_HEIGHT} },
         1,
         1,
-        10,
-        10,
-        10,
-        10
+        30,
+        30,
+        30,
+        30
     );
     // clang-format on
 
-    Game_Screens   *game    = game_screens_new();
-    Screen_Manager *manager = game_new_screens_manager(game);
+    // Game_Screens   *game    = game_screens_new();
+    // Screen_Manager *manager = game_new_screens_manager(game);
 
     // Menu_Screen data        = { 0 };
     // Screen_Desc menu        = menu_screen_init(&data);
     // bool        menu_loaded = false;
 
-    Loading_Screen data = { 0 };
-    Screen_Desc    load = loading_screen_init(&data);
-    load.enter(&data, NULL);
+    // Loading_Screen data = { 0 };
+    // Screen_Desc    load = loading_screen_init(&data);
+    // load.enter(&data, NULL);
+
+    Game_Screen data        = { 0 };
+    Screen_Desc game        = game_screen_init(&data);
+    bool        game_loaded = false;
 
     while (1) {
         // if (!menu_loaded) {
@@ -86,12 +90,22 @@ int main(void)
         //     }
         // }
 
+        if (!game_loaded) {
+            Load_Result result = game.load(&data, NULL);
+            if (result == LOAD_DONE) {
+                game_loaded = true;
+            }
+        }
+
         // update
         input_update(&input);
-        screen_manager_update(manager);
+        // screen_manager_update(manager);
 
         // if (menu_loaded)
         //     menu.update(&data, NULL);
+
+        if (game_loaded)
+            game.update(&data, NULL);
 
         // load.update(&data, NULL);
 
@@ -101,7 +115,10 @@ int main(void)
         // if (menu_loaded)
         //     menu.draw(&data, NULL);
 
-        screen_manager_draw(manager);
+        if (game_loaded)
+            game.draw(&data, NULL);
+
+        // screen_manager_draw(manager);
 
         // load.draw(&data, NULL);
 
@@ -110,7 +127,7 @@ int main(void)
         sceDisplayWaitVblank();
         sceGuSwapBuffers();
 
-        screen_manager_commit(manager);
+        // screen_manager_commit(manager);
     }
 
     return 0;

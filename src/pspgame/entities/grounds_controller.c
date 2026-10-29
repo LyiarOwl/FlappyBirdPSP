@@ -30,13 +30,13 @@ Grounds_Controller new_grounds_controller(
     Texture2D *texture, usize count, Camera2D *camera, f32 scroll_spd, Vec2 offset
 )
 {
-    Grounds_Controller controller = { 0 };
+    Grounds_Controller c = { 0 };
 
-    controller.grounds = array_new(count, sizeof(Ground));
+    c.grounds = array_new(count, sizeof(Ground));
 
     screen_min = camera2d_screen_to_world(camera, (Vec2){ 0 });
 
-    create_grounds(&controller, texture, scroll_spd, offset);
+    create_grounds(&c, texture, scroll_spd, offset);
 
     Vec2 screen_max = camera2d_screen_to_world(camera, (Vec2){ SCREEN_WIDTH, SCREEN_HEIGHT });
 
@@ -46,13 +46,20 @@ Grounds_Controller new_grounds_controller(
     Vec2 screen_center =
         camera2d_screen_to_world(camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f });
 
-    controller.body = phw_world_create_character_body(
+    c.body = phw_world_create_character_body(
         &world, phw_create_rect_coll_shape((Phw_Vec2){ view_width / 2.f, 20.f / 2.f })
     );
-    controller.body->user_layer_mask = LAYER_MASK_GROUND;
-    phw_body_set_position(controller.body, (Phw_Vec2){ screen_center.x, view_height - 14 });
+    c.body->user_layer_mask = LAYER_MASK_GROUND;
+    float shape_height      = 0.f;
 
-    return controller;
+    if (c.body->collision_shape.type == PHW_COLL_SHAPE_RECT)
+        shape_height = c.body->collision_shape.shape.rect.h_size.y;
+
+    phw_body_set_position(
+        c.body, (Phw_Vec2){ c.offset.x + view_width / 2.f, c.offset.y + shape_height }
+    );
+
+    return c;
 }
 
 void update_grounds_controller(Grounds_Controller *controller)
