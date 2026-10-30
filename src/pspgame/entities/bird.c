@@ -66,7 +66,7 @@ static void handle_entering_score_region(Bird *bird)
 
     if (collision) {
         if (!bird->entered_score_collision) {
-            observers_list_notify_all(&bird->score_region_collision_observers, NULL);
+            observers_list_notify_all(&bird->score_region_collision_observers, bird->screen);
         }
     }
 
@@ -95,27 +95,30 @@ Bird new_bird(Texture2D *texture, float x, float y, void *screen)
     Bird bird = { 0 };
 
     bird.screen         = screen;
-    bird.grav           = 0.15f;
-    bird.max_vert_speed = 5.f;
-    bird.jump_impulse   = 2.f;
+    bird.grav           = 0.2f;
+    bird.max_vert_speed = 4.f;
+    bird.jump_impulse   = 2.5f;
 
-    Texture_Region frames[3] = { texture_region_create(texture, 423, 9, 19, 14),
-                                 texture_region_create(texture, 455, 9, 19, 14),
-                                 texture_region_create(texture, 487, 9, 19, 14) };
+    Texture_Region frames[4] = {
+        texture_region_create(texture, 455, 9, 19, 14), // 3
+        texture_region_create(texture, 487, 9, 19, 14), // 0
+        texture_region_create(texture, 455, 9, 19, 14), // 1
+        texture_region_create(texture, 423, 9, 19, 14), // 2
+    };
 
-    bird.fly_anim = animation_new(0.1f, frames, 3);
+    bird.fly_anim = animation_new(0.1f, frames, 4);
     animation_set_play_mode(&bird.fly_anim, ANIM_PLAY_MODE_NORMAL);
 
     bird.sprite = sprite_new(frames[0]);
     spr_center_origin(&bird.sprite);
 
-    bird.body = phw_world_create_character_body(&world, phw_create_circle_coll_shape(4.f));
+    bird.body = phw_world_create_character_body(&world, phw_create_circle_coll_shape(3.f));
     bird.body->user_layer_mask = LAYER_MASK_BIRD;
 
     phw_body_set_position(bird.body, (Phw_Vec2){ x, y });
     bird.initial_position = (Phw_Vec2){ x, y };
 
-    bird.score_region_collision_observers = observers_list_new(2);
+    bird.score_region_collision_observers = observers_list_new(1);
 
     return bird;
 }
@@ -162,10 +165,10 @@ void draw_bird(Bird *bird)
 
     Game_Screen *g = bird->screen;
     if (!g->start) {
-        bird->animation_elapsed += delta * 0.5f;
+        bird->animation_elapsed += delta;
         bird->sprite.region =
             *animation_get_keyframe_looping(&bird->fly_anim, bird->animation_elapsed, true);
-    } else if (!g->game_over) {
+    } else {
         bird->animation_elapsed += delta;
         bird->sprite.region = *animation_get_keyframe(&bird->fly_anim, bird->animation_elapsed);
     }

@@ -15,6 +15,6 @@ Observers_List observers_list_new(usize max_capacity);
 
 void observers_list_notify_all(Observers_List *, void *user_data);
 
-void observers_list_add_observer(Observers_List *, observer_cb);
+void observers_list_add_observer(Observers_List *, void (*observer_cb)(void *user_data));
 
 void observers_list_free(Observers_List *);

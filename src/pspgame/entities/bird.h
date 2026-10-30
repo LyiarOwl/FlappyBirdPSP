@@ -11,16 +11,18 @@ typedef void (*on_bird_score_region_collision_cb)(void);
 
 typedef struct bird
 {
-    void          *screen;
-    Phw_Vec2       initial_position;
-    Phw_Vec2       vel;
-    f32            grav;
-    f32            max_vert_speed;
-    f32            jump_impulse;
-    f32            animation_elapsed;
-    bool           entered_score_collision;
-    Sprite         sprite;
-    Animation      fly_anim;
+    void    *screen;
+    Phw_Vec2 initial_position;
+    Phw_Vec2 vel;
+    f32      grav;
+    f32      max_vert_speed;
+    f32      jump_impulse;
+    f32      animation_elapsed;
+    bool     entered_score_collision;
+
+    Animation fly_anim;
+    Sprite    sprite;
+
     Observers_List score_region_collision_observers;
 
     Phw_Character_Body *body;

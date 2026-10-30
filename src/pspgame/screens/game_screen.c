@@ -1,5 +1,6 @@
 #include "game_screen.h"
 #include "lframework/animation.h"
+#include "lframework/bitmap_font.h"
 #include "lframework/camera2d.h"
 #include "lframework/colors.h"
 #include "lframework/common.h"
@@ -15,11 +16,18 @@
 #include "pspgame/entities/grounds_controller.h"
 #include "pspgame/entities/pipes_controller.h"
 #include "pspgame/globals.h"
+#include "pspgame/observers_list.h"
 #include "pspgame/screen_manager.h"
 #include "screen_ids.h"
 #include "settings.h"
 
 #define SPRITESHEET "assets/images/flappybird.png"
+
+static void add_score(void *user_data)
+{
+    Game_Screen *s = user_data;
+    s->main_score += 1;
+}
 
 static Load_Result load(void *ctx, Screen_Manager *m)
 {
@@ -68,9 +76,9 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         return LOAD_MORE;
     }
     case 5: {
-        Vec2 screen_center =
+        s->screen_center =
             camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f });
-        s->bird = new_bird(&s->spritesheet, screen_center.x, screen_center.y, s);
+        s->bird = new_bird(&s->spritesheet, s->screen_center.x, s->screen_center.y, s);
     }
         return LOAD_MORE;
     case 6: {
@@ -80,16 +88,18 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         Vec2 screen_center =
             camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f });
 
-        float gap = 30.f;
+        float gap       = 50.f;
+        float hints_gap = 15.f;
 
         // upper hint
+        float lower_hint_y_offset = 10.f;
         s->jump_hint_upper_sprite =
             sprite_new(texture_region_create(&s->spritesheet, 124, 370, 21, 28));
         spr_center_origin(&s->jump_hint_upper_sprite);
         s->jump_hint_upper_sprite.scale_x = s->scale;
         s->jump_hint_upper_sprite.scale_y = s->scale;
         s->jump_hint_upper_sprite.x       = screen_center.x;
-        s->jump_hint_upper_sprite.y       = screen_center.y - gap;
+        s->jump_hint_upper_sprite.y       = screen_center.y + gap - hints_gap + lower_hint_y_offset;
 
         // lower hint
         Texture_Region lower_hint_frames[2] = {
@@ -104,7 +114,46 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         s->jump_hint_lower_sprite.scale_x = s->scale;
         s->jump_hint_lower_sprite.scale_y = s->scale;
         s->jump_hint_lower_sprite.x       = screen_center.x;
-        s->jump_hint_lower_sprite.y       = screen_center.y + gap;
+        s->jump_hint_lower_sprite.y       = screen_center.y + gap + hints_gap + lower_hint_y_offset;
+
+        // get ready
+        s->get_ready_label_sprite =
+            sprite_new(texture_region_create(&s->spritesheet, 137, 292, 94, 27));
+        spr_center_origin(&s->get_ready_label_sprite);
+        s->get_ready_label_sprite.scale_x = s->scale;
+        s->get_ready_label_sprite.scale_y = s->scale;
+        s->get_ready_label_sprite.x       = screen_center.x;
+        s->get_ready_label_sprite.y       = screen_center.y - gap;
+    }
+        return LOAD_MORE;
+    case 7: {
+        s->main_score_font = bitmap_font_load("assets/images/score_font.png", 24, 24, -8);
+
+        s->main_score = 0;
+
+        s->screen_top_center =
+            camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, 0 });
+
+        observers_list_add_observer(&s->bird.score_region_collision_observers, add_score);
+    }
+        return LOAD_MORE;
+    case 8: {
+        s->game_over_label_sprite =
+            sprite_new(texture_region_create(&s->spritesheet, 135, 325, 99, 22));
+        s->score_board_sprite = sprite_new(texture_region_create(&s->spritesheet, 7, 353, 115, 61));
+        spr_center_origin(&s->game_over_label_sprite);
+        spr_center_origin(&s->score_board_sprite);
+
+        s->game_over_label_sprite.scale_x = s->scale;
+        s->game_over_label_sprite.scale_y = s->scale;
+
+        s->score_board_sprite.scale_x = s->scale;
+        s->score_board_sprite.scale_y = s->scale;
+
+        s->game_over_label_sprite.x = s->score_board_sprite.x = s->screen_center.x;
+        s->game_over_label_sprite.y = s->score_board_sprite.y = s->screen_center.y;
+
+        s->game_over_label_sprite.y -= 60.f;
     }
         return LOAD_MORE;
     default:
@@ -129,10 +178,13 @@ static void update(void *ctx, Screen_Manager *m)
             *anim_get_kf(&g->jump_hint_lower_anim, g->jump_hint_lower_elapsed);
     }
 
+    if (!g->game_over) {
+        update_backgrounds_controller(&g->background_contrl);
+        update_grounds_controller(&g->ground_contrl);
+    }
+
     if (g->start) {
         if (!g->game_over) {
-            update_backgrounds_controller(&g->background_contrl);
-            update_grounds_controller(&g->ground_contrl);
             update_pipes_controller(&g->pipes_contrl);
         }
 
@@ -160,6 +212,26 @@ static void draw(void *ctx, const Screen_Manager *m)
     if (!s->start) {
         sprite_draw(&s->jump_hint_upper_sprite, sprite_batch);
         sprite_draw(&s->jump_hint_lower_sprite, sprite_batch);
+        sprite_draw(&s->get_ready_label_sprite, sprite_batch);
+    }
+
+    char text_buf[16];
+    snprintf(text_buf, 16, "%d", s->main_score);
+    Vec2 str_size = bitmap_font_measure_str(&s->main_score_font, text_buf);
+    sprite_batch_draw_str(
+        sprite_batch,
+        &s->main_score_font,
+        text_buf,
+        s->screen_top_center.x - str_size.x * 0.5f,
+        s->screen_top_center.y + 20.f,
+        COLOR_WHITE
+    );
+
+    if (s->start) {
+        if (s->game_over) {
+            sprite_draw(&s->game_over_label_sprite, sprite_batch);
+            sprite_draw(&s->score_board_sprite, sprite_batch);
+        }
     }
 
     sprite_batch_end(sprite_batch);
@@ -176,6 +248,7 @@ static void exit_screen(void *ctx, Screen_Manager *m)
     free_pipes_controller(&s->pipes_contrl);
     free_bird(&s->bird);
     animation_free(&s->jump_hint_lower_anim);
+    bitmap_font_unload(&s->main_score_font);
     texture2d_unload(&s->spritesheet);
     phw_debug_renderer_free(s->debug_renderer);
     s->load_step = 0;
