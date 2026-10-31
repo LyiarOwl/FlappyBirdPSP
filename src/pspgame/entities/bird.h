@@ -30,7 +30,7 @@ typedef struct bird
 
 Bird new_bird(Texture2D *, float x, float y, void *screen);
 
-void update_bird(Bird *);
+void update_bird(Bird *, bool allow_jump);
 
 void draw_bird(Bird *);
 

@@ -123,15 +123,14 @@ Bird new_bird(Texture2D *texture, float x, float y, void *screen)
     return bird;
 }
 
-void update_bird(Bird *bird)
+void update_bird(Bird *bird, bool allow_jump)
 {
     bool is_on_floor = check_ground_collision(bird, (Phw_Vec2){ 0.f, 1.f });
     if (!is_on_floor) {
         bird->vel.y = f32_min(bird->vel.y + bird->grav, bird->max_vert_speed);
     }
 
-    Game_Screen *g = bird->screen;
-    if (!g->game_over) {
+    if (allow_jump) {
         if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
             bird->vel.y             = -bird->jump_impulse;
             bird->animation_elapsed = 0.f;
@@ -141,16 +140,19 @@ void update_bird(Bird *bird)
     handle_entering_score_region(bird);
 
     if (handle_ground_collision(bird)) {
-        g->game_over = true;
+        // g->game_over = true;
+        game_screen_switch_to_game_over(bird->screen);
     }
 
     if (check_pipes_collision(bird)) {
-        g->game_over = true;
+        // g->game_over = true;
+        game_screen_switch_to_game_over(bird->screen);
     }
 
     Phw_Vec2 pos = phw_body_get_position(bird->body);
     if (pos.y < 0) {
-        g->game_over = true;
+        // g->game_over = true;
+        game_screen_switch_to_game_over(bird->screen);
     }
 
     pos.y += bird->vel.y;

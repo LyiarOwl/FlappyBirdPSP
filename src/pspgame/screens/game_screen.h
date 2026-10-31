@@ -3,6 +3,7 @@
 
 #include "lframework/animation.h"
 #include "lframework/camera2d.h"
+#include "lframework/sprite.h"
 #include "lframework/texture2d.h"
 #include "lframework/texture_region.h"
 #include "phwind/phw_debug_renderer.h"
@@ -18,19 +19,30 @@ typedef struct
     Texture2D   spritesheet;
     Bitmap_Font main_score_font;
 
-    Camera2D camera;
-
+    Camera2D               camera;
     Backgrounds_Controller background_contrl;
     Grounds_Controller     ground_contrl;
     Pipes_Controller       pipes_contrl;
     Bird                   bird;
 
-    Animation jump_hint_lower_anim;
-    Sprite    jump_hint_upper_sprite;
-    Sprite    jump_hint_lower_sprite;
-    Sprite    get_ready_label_sprite;
-    Sprite    game_over_label_sprite;
-    Sprite    score_board_sprite;
+    Sprite jump_hint_upper_sprite;
+    Sprite jump_hint_lower_sprite;
+
+    Sprite get_ready_label_sprite;
+    Sprite game_over_label_sprite;
+
+    Sprite score_board_sprite;
+
+    Sprite restart_btn_sprite;
+    Sprite menu_btn_sprite;
+    Sprite score_btn_sprite;
+
+    Sprite move_selector_hint_sprite;
+    Sprite confirm_action_hint_sprite;
+    Sprite pause_hint_sprite;
+    Sprite back_hint_sprite;
+
+    Sprite selector_sprite;
 
     Texture_Region restart_btn_down;
     Texture_Region restart_btn_up;
@@ -38,29 +50,37 @@ typedef struct
     Texture_Region score_btn_up;
     Texture_Region menu_btn_down;
     Texture_Region menu_btn_up;
-    Sprite         restart_btn_sprite;
-    Sprite         menu_btn_sprite;
-    Sprite         score_btn_sprite;
+
+    Animation jump_hint_lower_anim;
+    Animation selector_anim;
 
     Vec2 screen_top_center;
     Vec2 screen_center;
+    Vec2 screen_bottom_center;
 
     Phw_Debug_Renderer *debug_renderer;
 
     bool game_over;
     bool start;
+    bool paused;
 
     color clear_color;
 
     int load_step;
     int main_score;
+    int current_option;
+    int options_count;
 
+    float selector_anim_elapsed;
     float jump_hint_lower_elapsed;
+
     float foreground_scroll_speed;
     float scale;
     float delta;
 } Game_Screen;
 
 Screen_Desc game_screen_init(Game_Screen *s);
+
+void game_screen_switch_to_game_over(void *screen);
 
 #endif

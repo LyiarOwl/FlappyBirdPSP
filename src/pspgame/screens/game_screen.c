@@ -18,16 +18,211 @@
 #include "pspgame/globals.h"
 #include "pspgame/observers_list.h"
 #include "pspgame/screen_manager.h"
+#include "pspintrman.h"
 #include "screen_ids.h"
 #include "settings.h"
 
 #define SPRITESHEET "assets/images/flappybird.png"
+
+typedef enum { IN_GAME, GAME_OVER, PAUSED } SCREEN_STATE;
+
+static SCREEN_STATE curr_screen_state = IN_GAME;
+
+static float btn_pressed_y_offset = 0.f;
+static bool  analog_active        = false;
+
+static void reset(Game_Screen *s)
+{
+    reset_pipes_controller(&s->pipes_contrl);
+    reset_backgrounds_controller(&s->background_contrl);
+    reset_grounds_controller(&s->ground_contrl);
+    reset_bird(&s->bird);
+    s->main_score     = 0;
+    curr_screen_state = IN_GAME;
+    s->start          = false;
+    s->game_over      = false;
+}
+
+static void move_selector_right(Game_Screen *s)
+{
+    s->current_option += 1;
+    if (s->current_option >= s->options_count)
+        s->current_option = 0;
+}
+static void move_selector_left(Game_Screen *s)
+{
+    s->current_option -= 1;
+    if (s->current_option < 0)
+        s->current_option = s->options_count - 1;
+}
+
+static void change_screen_state(SCREEN_STATE id, Game_Screen *s)
+{
+    if (curr_screen_state == id)
+        return;
+
+    curr_screen_state = id;
+    switch (curr_screen_state) {
+    case IN_GAME:
+        break;
+    case GAME_OVER:
+        break;
+    case PAUSED:
+        break;
+    }
+}
+
+void game_screen_switch_to_game_over(void *s) { change_screen_state(GAME_OVER, s); }
 
 static void add_score(void *user_data)
 {
     Game_Screen *s = user_data;
     s->main_score += 1;
 }
+
+/* =================================================
+ * ------------- menu buttons overlay --------------
+ * =================================================
+ */
+static void update_buttons_overlay(Game_Screen *s)
+{
+    const float gap               = 80.f;
+    float       btn_y_offset      = 0.f;
+    float       selector_y_offset = 0.f;
+
+    s->confirm_action_hint_sprite.x = s->screen_bottom_center.x;
+    s->confirm_action_hint_sprite.y = s->screen_bottom_center.y - 10.f;
+    s->move_selector_hint_sprite.x  = s->screen_bottom_center.x;
+    s->move_selector_hint_sprite.y  = s->screen_bottom_center.y - 20.f;
+    s->back_hint_sprite.x           = s->screen_bottom_center.x;
+    s->back_hint_sprite.y           = s->screen_bottom_center.y - 30.f;
+
+    switch (curr_screen_state) {
+    case IN_GAME:
+        break;
+    case GAME_OVER:
+        btn_y_offset      = 70.f;
+        selector_y_offset = 27.f;
+
+        break;
+    case PAUSED:
+        selector_y_offset = 27.f;
+        break;
+    }
+
+    // move selector
+    if (input_is_btn_up(&input, PSP_CTRL_CROSS)) {
+        if (input_was_btn_pressed(&input, PSP_CTRL_RIGHT))
+            move_selector_right(s);
+        else if (input_was_btn_pressed(&input, PSP_CTRL_LEFT))
+            move_selector_left(s);
+
+        if (f32_abs(input.analog.x) > 0.25f) {
+            if (!analog_active) {
+                analog_active = true;
+                if (input.analog.x > 0)
+                    move_selector_right(s);
+                else if (input.analog.x < 0)
+                    move_selector_left(s);
+            }
+        } else {
+            analog_active = false;
+        }
+    }
+
+    // setting current btn (visuals)
+    Texture_Region *current_btn_down = NULL;
+    Texture_Region *current_btn_up   = NULL;
+    Sprite         *current_btn      = NULL;
+    switch (s->current_option) {
+    case 0:
+        current_btn_down     = &s->menu_btn_down;
+        current_btn_up       = &s->menu_btn_up;
+        current_btn          = &s->menu_btn_sprite;
+        s->selector_sprite.x = s->menu_btn_sprite.x;
+        s->selector_sprite.y = s->menu_btn_sprite.y - selector_y_offset;
+        break;
+    case 1:
+        current_btn_down     = &s->restart_btn_down;
+        current_btn_up       = &s->restart_btn_up;
+        current_btn          = &s->restart_btn_sprite;
+        s->selector_sprite.x = s->restart_btn_sprite.x;
+        s->selector_sprite.y = s->restart_btn_sprite.y - selector_y_offset;
+        break;
+    case 2:
+        current_btn_down     = &s->score_btn_down;
+        current_btn_up       = &s->score_btn_up;
+        current_btn          = &s->score_btn_sprite;
+        s->selector_sprite.x = s->score_btn_sprite.x;
+        s->selector_sprite.y = s->score_btn_sprite.y - selector_y_offset;
+        break;
+    }
+
+    // pressing (visuals)
+    if (input_was_btn_pressed(&input, PSP_CTRL_CROSS)) {
+        s->selector_anim_elapsed = 0.3f;
+        current_btn->region      = *current_btn_down;
+        btn_pressed_y_offset     = 2.f;
+    }
+    if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
+        current_btn->region      = *current_btn_up;
+        btn_pressed_y_offset     = 0;
+        s->selector_anim_elapsed = 0.f;
+    }
+
+    // actions
+    if (curr_screen_state == PAUSED || curr_screen_state == GAME_OVER) {
+        if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
+            switch (s->current_option) {
+            case 0:
+                break;
+            case 1:
+                reset(s);
+                break;
+            case 2:
+                break;
+            }
+        }
+    }
+
+    // animating selector
+    if (input_is_btn_up(&input, PSP_CTRL_CROSS))
+        s->selector_anim_elapsed += s->delta;
+
+    s->selector_sprite.region =
+        *animation_get_keyframe(&s->selector_anim, s->selector_anim_elapsed);
+
+    // position buttons
+    s->menu_btn_sprite.x = s->screen_center.x - gap;
+    s->menu_btn_sprite.y = s->screen_center.y + btn_y_offset;
+
+    s->restart_btn_sprite.x = s->screen_center.x;
+    s->restart_btn_sprite.y = s->screen_center.y + btn_y_offset;
+
+    s->score_btn_sprite.x = s->screen_center.x + gap;
+    s->score_btn_sprite.y = s->screen_center.y + btn_y_offset;
+
+    current_btn->y += btn_pressed_y_offset;
+}
+
+static void draw_buttons_overlay(Game_Screen *s)
+{
+    sprite_draw(&s->restart_btn_sprite, sprite_batch);
+    sprite_draw(&s->menu_btn_sprite, sprite_batch);
+    sprite_draw(&s->score_btn_sprite, sprite_batch);
+
+    sprite_draw(&s->selector_sprite, sprite_batch);
+
+    sprite_draw(&s->move_selector_hint_sprite, sprite_batch);
+    sprite_draw(&s->confirm_action_hint_sprite, sprite_batch);
+    if (curr_screen_state == PAUSED)
+        sprite_draw(&s->back_hint_sprite, sprite_batch);
+}
+
+/* =================================================
+ * --------------- screen life cycle ---------------
+ * =================================================
+ */
 
 static Load_Result load(void *ctx, Screen_Manager *m)
 {
@@ -153,7 +348,65 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         s->game_over_label_sprite.x = s->score_board_sprite.x = s->screen_center.x;
         s->game_over_label_sprite.y = s->score_board_sprite.y = s->screen_center.y;
 
-        s->game_over_label_sprite.y -= 60.f;
+        s->game_over_label_sprite.y -= 65.f;
+    }
+        return LOAD_MORE;
+    case 9: {
+        s->restart_btn_down = texture_region_create(&s->spritesheet, 133, 433, 54, 31);
+        s->restart_btn_up   = texture_region_create(&s->spritesheet, 133, 399, 54, 33);
+
+        s->score_btn_down = texture_region_create(&s->spritesheet, 69, 321, 54, 31);
+        s->score_btn_up   = texture_region_create(&s->spritesheet, 69, 287, 54, 33);
+
+        s->menu_btn_down = texture_region_create(&s->spritesheet, 197, 433, 54, 31);
+        s->menu_btn_up   = texture_region_create(&s->spritesheet, 197, 399, 54, 33);
+
+        s->restart_btn_sprite = sprite_new(s->restart_btn_up);
+        s->menu_btn_sprite    = sprite_new(s->menu_btn_up);
+        s->score_btn_sprite   = sprite_new(s->score_btn_up);
+        spr_center_origin(&s->restart_btn_sprite);
+        spr_center_origin(&s->menu_btn_sprite);
+        spr_center_origin(&s->score_btn_sprite);
+        s->restart_btn_sprite.scale_x = s->scale;
+        s->restart_btn_sprite.scale_y = s->scale;
+        s->menu_btn_sprite.scale_x    = s->scale;
+        s->menu_btn_sprite.scale_y    = s->scale;
+        s->score_btn_sprite.scale_x   = s->scale;
+        s->score_btn_sprite.scale_y   = s->scale;
+
+        // selector
+        s->options_count  = 3;
+        s->current_option = 1;
+
+        Texture_Region frames[2] = { texture_region_create(&s->spritesheet, 128, 256, 16, 16),
+                                     texture_region_create(&s->spritesheet, 144, 256, 16, 16) };
+        s->selector_anim         = animation_new(0.3f, frames, 2);
+        animation_set_play_mode(&s->selector_anim, ANIM_PLAY_MODE_LOOP);
+        s->selector_sprite = sprite_new(frames[0]);
+        sprite_set_origin_norm(&s->selector_sprite, 0.55f, 0.5f);
+        s->selector_sprite.scale_x = s->scale;
+        s->selector_sprite.scale_y = s->scale;
+        s->selector_anim_elapsed   = 0.f;
+    }
+        return LOAD_MORE;
+    case 10: {
+        s->move_selector_hint_sprite =
+            sprite_new(texture_region_create(&s->spritesheet, 244, 275, 120, 11));
+        s->confirm_action_hint_sprite =
+            sprite_new(texture_region_create(&s->spritesheet, 244, 292, 89, 9));
+        s->pause_hint_sprite = sprite_new(texture_region_create(&s->spritesheet, 372, 277, 81, 7));
+        s->back_hint_sprite  = sprite_new(texture_region_create(&s->spritesheet, 372, 308, 102, 9));
+
+        spr_center_origin(&s->move_selector_hint_sprite);
+        spr_center_origin(&s->confirm_action_hint_sprite);
+        spr_center_origin(&s->pause_hint_sprite);
+        spr_center_origin(&s->back_hint_sprite);
+
+        s->screen_bottom_center =
+            camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT });
+
+        s->pause_hint_sprite.x = s->screen_bottom_center.x;
+        s->pause_hint_sprite.y = s->screen_bottom_center.y - 10.f;
     }
         return LOAD_MORE;
     default:
@@ -167,28 +420,48 @@ static void update(void *ctx, Screen_Manager *m)
     (void)m;
     Game_Screen *g = ctx;
 
-    // start and show hint
-    if (!g->start) {
-        if (input_was_btn_pressed(&input, PSP_CTRL_CROSS)) {
-            g->start = true;
+    switch (curr_screen_state) {
+    case IN_GAME: {
+        if (!g->start) {
+            if (input_was_btn_pressed(&input, PSP_CTRL_CROSS)) {
+                g->start = true;
+            }
+
+            g->jump_hint_lower_elapsed += g->delta;
+            g->jump_hint_lower_sprite.region =
+                *anim_get_kf(&g->jump_hint_lower_anim, g->jump_hint_lower_elapsed);
         }
 
-        g->jump_hint_lower_elapsed += g->delta;
-        g->jump_hint_lower_sprite.region =
-            *anim_get_kf(&g->jump_hint_lower_anim, g->jump_hint_lower_elapsed);
-    }
-
-    if (!g->game_over) {
         update_backgrounds_controller(&g->background_contrl);
         update_grounds_controller(&g->ground_contrl);
-    }
 
-    if (g->start) {
-        if (!g->game_over) {
+        if (g->start) {
             update_pipes_controller(&g->pipes_contrl);
-        }
 
-        update_bird(&g->bird);
+            update_bird(&g->bird, true);
+
+            if (input_was_btn_pressed(&input, PSP_CTRL_START)) {
+                curr_screen_state = PAUSED;
+            }
+        }
+    } break;
+    case GAME_OVER: {
+        if (!g->start)
+            break;
+
+        update_bird(&g->bird, false);
+        update_buttons_overlay(g);
+    } break;
+    case PAUSED: {
+        if (!g->start)
+            break;
+
+        if (input_was_btn_pressed(&input, PSP_CTRL_START) ||
+            input_was_btn_pressed(&input, PSP_CTRL_CIRCLE)) {
+            curr_screen_state = IN_GAME;
+        }
+        update_buttons_overlay(g);
+    } break;
     }
 
     // if (IsKeyPressed(KEY_F1))
@@ -215,23 +488,35 @@ static void draw(void *ctx, const Screen_Manager *m)
         sprite_draw(&s->get_ready_label_sprite, sprite_batch);
     }
 
-    char text_buf[16];
-    snprintf(text_buf, 16, "%d", s->main_score);
-    Vec2 str_size = bitmap_font_measure_str(&s->main_score_font, text_buf);
-    sprite_batch_draw_str(
-        sprite_batch,
-        &s->main_score_font,
-        text_buf,
-        s->screen_top_center.x - str_size.x * 0.5f,
-        s->screen_top_center.y + 20.f,
-        COLOR_WHITE
-    );
-
-    if (s->start) {
-        if (s->game_over) {
-            sprite_draw(&s->game_over_label_sprite, sprite_batch);
-            sprite_draw(&s->score_board_sprite, sprite_batch);
+    switch (curr_screen_state) {
+    case IN_GAME: {
+        if (s->start) {
+            char text_buf[16];
+            snprintf(text_buf, 16, "%d", s->main_score);
+            Vec2 str_size = bitmap_font_measure_str(&s->main_score_font, text_buf);
+            sprite_batch_draw_str(
+                sprite_batch,
+                &s->main_score_font,
+                text_buf,
+                s->screen_top_center.x - str_size.x * 0.5f,
+                s->screen_top_center.y + 20.f,
+                COLOR_WHITE
+            );
         }
+
+        sprite_draw(&s->pause_hint_sprite, sprite_batch);
+    }
+
+    break;
+    case GAME_OVER:
+        sprite_draw(&s->game_over_label_sprite, sprite_batch);
+        sprite_draw(&s->score_board_sprite, sprite_batch);
+        draw_buttons_overlay(s);
+        break;
+    case PAUSED:
+        draw_buttons_overlay(s);
+        // sprite_draw(&s->spri, Sprite_Batch *)
+        break;
     }
 
     sprite_batch_end(sprite_batch);
