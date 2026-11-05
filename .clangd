@@ -9,7 +9,7 @@ CompileFlags:
     - "-target"
     - "mips-sony-psp"
     - "--sysroot=/home/lyiar/pspdev/psp"
-    - -I/home/lyiar/pspdev/special_projects/04.2_flappy_bird/src
+    - -I/home/lyiar/pspdev/special_projects/04_flappy_bird/v1.0.0/src
     - -I/home/lyiar/pspdev/psp/sdk/include
     - -I/home/lyiar/pspdev/psp/include
 

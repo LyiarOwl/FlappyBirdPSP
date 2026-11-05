@@ -17,7 +17,7 @@ void draw_background(Background *bg)
 {
     // sprite_batch_draw_tex_region(sprite_batch, bg->region, bg->position, COLOR_WHITE);
     sprite_batch_draw_tex_pro(
-        sprite_batch,
+        g_sprite_batch,
         bg->region.texture,
         bg->position.x,
         bg->position.y,

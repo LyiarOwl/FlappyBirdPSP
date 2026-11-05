@@ -47,15 +47,15 @@ static void draw(void *ctx, const Screen_Manager *m)
     (void)m;
     Intro_Screen *s = ctx;
     clear(COLOR_BLACK);
-    sprite_batch_begin(sprite_batch, NULL);
+    sprite_batch_begin(g_sprite_batch, NULL);
     sprite_batch_draw_tex(
-        sprite_batch,
+        g_sprite_batch,
         &s->logo,
         (float)SCREEN_WIDTH * 0.5f - s->logo.w * 0.5f,
         (float)SCREEN_HEIGHT * 0.5f - s->logo.h * 0.5f,
         color_set_alpha(COLOR_WHITE, s->alpha)
     );
-    sprite_batch_end(sprite_batch);
+    sprite_batch_end(g_sprite_batch);
 }
 
 static void exit(void *ctx, Screen_Manager *m)

@@ -16,7 +16,7 @@ void update_ground(Ground *ground) { ground->position.x -= ground->scroll_speed;
 void draw_ground(Ground *ground)
 {
     sprite_batch_draw_tex_pro(
-        sprite_batch,
+        g_sprite_batch,
         ground->region.texture,
         ground->position.x,
         ground->position.y,

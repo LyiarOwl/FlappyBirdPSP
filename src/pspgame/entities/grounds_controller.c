@@ -47,7 +47,7 @@ Grounds_Controller new_grounds_controller(
         camera2d_screen_to_world(camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f });
 
     c.body = phw_world_create_character_body(
-        &world, phw_create_rect_coll_shape((Phw_Vec2){ view_width / 2.f, 20.f / 2.f })
+        &g_world, phw_create_rect_coll_shape((Phw_Vec2){ view_width / 2.f, 20.f / 2.f })
     );
     c.body->user_layer_mask = LAYER_MASK_GROUND;
     float shape_height      = 0.f;

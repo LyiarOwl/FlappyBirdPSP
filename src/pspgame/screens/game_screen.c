@@ -1,4 +1,5 @@
 #include "game_screen.h"
+#include "SDL3_mixer/SDL_mixer.h"
 #include "lframework/animation.h"
 #include "lframework/bitmap_font.h"
 #include "lframework/camera2d.h"
@@ -10,6 +11,9 @@
 #include "lframework/texture2d.h"
 #include "lframework/texture_region.h"
 #include "phwind/phw_debug_renderer.h"
+#include "phwind/phw_spatial_grid.h"
+#include "phwind/phw_spatial_grid_bucket.h"
+#include "phwind/phw_world.h"
 #include "pspctrl.h"
 #include "pspgame/entities/backgrounds_controller.h"
 #include "pspgame/entities/bird.h"
@@ -21,6 +25,7 @@
 #include "pspintrman.h"
 #include "screen_ids.h"
 #include "settings.h"
+#include <stdio.h>
 
 #define SPRITESHEET "assets/images/flappybird.png"
 
@@ -28,8 +33,12 @@ typedef enum { IN_GAME, GAME_OVER, PAUSED } SCREEN_STATE;
 
 static SCREEN_STATE curr_screen_state = IN_GAME;
 
-static float btn_pressed_y_offset = 0.f;
-static bool  analog_active        = false;
+static float btn_pressed_y_offset         = 0.f;
+static float sub_score_elapsed            = 0.f;
+static float sub_score_increment_interval = 0.05f;
+static int   current_sub_score            = 0;
+static bool  analog_active                = false;
+static bool  running_sub_score_transition = false;
 
 static void reset(Game_Screen *s)
 {
@@ -37,10 +46,15 @@ static void reset(Game_Screen *s)
     reset_backgrounds_controller(&s->background_contrl);
     reset_grounds_controller(&s->ground_contrl);
     reset_bird(&s->bird);
-    s->main_score     = 0;
-    curr_screen_state = IN_GAME;
-    s->start          = false;
-    s->game_over      = false;
+    s->main_score                = 0;
+    s->start                     = false;
+    s->show_medal                = false;
+    s->show_new_label            = false;
+    curr_screen_state            = IN_GAME;
+    sub_score_elapsed            = 0.f;
+    current_sub_score            = 0;
+    analog_active                = false;
+    running_sub_score_transition = false;
 }
 
 static void move_selector_right(Game_Screen *s)
@@ -78,24 +92,25 @@ static void add_score(void *user_data)
 {
     Game_Screen *s = user_data;
     s->main_score += 1;
+    MIX_StopTrack(s->point_sfx.track, 0);
+    MIX_PlayTrack(s->point_sfx.track, 0);
 }
 
 /* =================================================
  * ------------- menu buttons overlay --------------
  * =================================================
  */
-static void update_buttons_overlay(Game_Screen *s)
+static void update_buttons_overlay(Game_Screen *s, Screen_Manager *m)
 {
-    const float gap               = 80.f;
-    float       btn_y_offset      = 0.f;
-    float       selector_y_offset = 0.f;
+    float btn_y_offset      = 0.f;
+    float selector_y_offset = 0.f;
 
     s->confirm_action_hint_sprite.x = s->screen_bottom_center.x;
     s->confirm_action_hint_sprite.y = s->screen_bottom_center.y - 10.f;
     s->move_selector_hint_sprite.x  = s->screen_bottom_center.x;
     s->move_selector_hint_sprite.y  = s->screen_bottom_center.y - 20.f;
-    s->back_hint_sprite.x           = s->screen_bottom_center.x;
-    s->back_hint_sprite.y           = s->screen_bottom_center.y - 30.f;
+    s->resume_hint_sprite.x         = s->screen_bottom_center.x;
+    s->resume_hint_sprite.y         = s->screen_bottom_center.y - 30.f;
 
     switch (curr_screen_state) {
     case IN_GAME:
@@ -111,18 +126,18 @@ static void update_buttons_overlay(Game_Screen *s)
     }
 
     // move selector
-    if (input_is_btn_up(&input, PSP_CTRL_CROSS)) {
-        if (input_was_btn_pressed(&input, PSP_CTRL_RIGHT))
+    if (input_is_btn_up(&g_input, PSP_CTRL_CROSS)) {
+        if (input_was_btn_pressed(&g_input, PSP_CTRL_RIGHT))
             move_selector_right(s);
-        else if (input_was_btn_pressed(&input, PSP_CTRL_LEFT))
+        else if (input_was_btn_pressed(&g_input, PSP_CTRL_LEFT))
             move_selector_left(s);
 
-        if (f32_abs(input.analog.x) > 0.25f) {
+        if (f32_abs(g_input.analog.x) > 0.25f) {
             if (!analog_active) {
                 analog_active = true;
-                if (input.analog.x > 0)
+                if (g_input.analog.x > 0)
                     move_selector_right(s);
-                else if (input.analog.x < 0)
+                else if (g_input.analog.x < 0)
                     move_selector_left(s);
             }
         } else {
@@ -149,22 +164,15 @@ static void update_buttons_overlay(Game_Screen *s)
         s->selector_sprite.x = s->restart_btn_sprite.x;
         s->selector_sprite.y = s->restart_btn_sprite.y - selector_y_offset;
         break;
-    case 2:
-        current_btn_down     = &s->score_btn_down;
-        current_btn_up       = &s->score_btn_up;
-        current_btn          = &s->score_btn_sprite;
-        s->selector_sprite.x = s->score_btn_sprite.x;
-        s->selector_sprite.y = s->score_btn_sprite.y - selector_y_offset;
-        break;
     }
 
     // pressing (visuals)
-    if (input_was_btn_pressed(&input, PSP_CTRL_CROSS)) {
+    if (input_was_btn_pressed(&g_input, PSP_CTRL_CROSS)) {
         s->selector_anim_elapsed = 0.3f;
         current_btn->region      = *current_btn_down;
         btn_pressed_y_offset     = 2.f;
     }
-    if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
+    if (input_was_btn_released(&g_input, PSP_CTRL_CROSS)) {
         current_btn->region      = *current_btn_up;
         btn_pressed_y_offset     = 0;
         s->selector_anim_elapsed = 0.f;
@@ -172,58 +180,58 @@ static void update_buttons_overlay(Game_Screen *s)
 
     // actions
     if (curr_screen_state == PAUSED || curr_screen_state == GAME_OVER) {
-        if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
+        if (input_was_btn_pressed(&g_input, PSP_CTRL_CROSS)) {
+            MIX_StopTrack(s->wing_sfx.track, 0);
+            MIX_PlayTrack(s->wing_sfx.track, 0);
+        }
+        if (input_was_btn_released(&g_input, PSP_CTRL_CROSS)) {
+
             switch (s->current_option) {
             case 0:
+                screen_manager_request(m, SCR_MENU);
                 break;
             case 1:
                 reset(s);
-                break;
-            case 2:
                 break;
             }
         }
     }
 
     // animating selector
-    if (input_is_btn_up(&input, PSP_CTRL_CROSS))
+    if (input_is_btn_up(&g_input, PSP_CTRL_CROSS))
         s->selector_anim_elapsed += s->delta;
 
     s->selector_sprite.region =
         *animation_get_keyframe(&s->selector_anim, s->selector_anim_elapsed);
 
     // position buttons
-    s->menu_btn_sprite.x = s->screen_center.x - gap;
-    s->menu_btn_sprite.y = s->screen_center.y + btn_y_offset;
+    const float space_between = 40.f;
+    s->menu_btn_sprite.x      = s->screen_center.x - space_between;
+    s->menu_btn_sprite.y      = s->screen_center.y + btn_y_offset;
 
-    s->restart_btn_sprite.x = s->screen_center.x;
+    s->restart_btn_sprite.x = s->screen_center.x + space_between;
     s->restart_btn_sprite.y = s->screen_center.y + btn_y_offset;
-
-    s->score_btn_sprite.x = s->screen_center.x + gap;
-    s->score_btn_sprite.y = s->screen_center.y + btn_y_offset;
 
     current_btn->y += btn_pressed_y_offset;
 }
 
 static void draw_buttons_overlay(Game_Screen *s)
 {
-    sprite_draw(&s->restart_btn_sprite, sprite_batch);
-    sprite_draw(&s->menu_btn_sprite, sprite_batch);
-    sprite_draw(&s->score_btn_sprite, sprite_batch);
+    sprite_draw(&s->restart_btn_sprite, g_sprite_batch);
+    sprite_draw(&s->menu_btn_sprite, g_sprite_batch);
 
-    sprite_draw(&s->selector_sprite, sprite_batch);
+    sprite_draw(&s->selector_sprite, g_sprite_batch);
 
-    sprite_draw(&s->move_selector_hint_sprite, sprite_batch);
-    sprite_draw(&s->confirm_action_hint_sprite, sprite_batch);
+    sprite_draw(&s->move_selector_hint_sprite, g_sprite_batch);
+    sprite_draw(&s->confirm_action_hint_sprite, g_sprite_batch);
     if (curr_screen_state == PAUSED)
-        sprite_draw(&s->back_hint_sprite, sprite_batch);
+        sprite_draw(&s->resume_hint_sprite, g_sprite_batch);
 }
 
 /* =================================================
  * --------------- screen life cycle ---------------
  * =================================================
  */
-
 static Load_Result load(void *ctx, Screen_Manager *m)
 {
     (void)m;
@@ -267,7 +275,7 @@ static Load_Result load(void *ctx, Screen_Manager *m)
     }
         return LOAD_MORE;
     case 4: {
-        s->debug_renderer = phw_debug_renderer_new(&world, 1024UL);
+        s->debug_renderer = phw_debug_renderer_new(&g_world, 1024UL);
         return LOAD_MORE;
     }
     case 5: {
@@ -355,27 +363,20 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         s->restart_btn_down = texture_region_create(&s->spritesheet, 133, 433, 54, 31);
         s->restart_btn_up   = texture_region_create(&s->spritesheet, 133, 399, 54, 33);
 
-        s->score_btn_down = texture_region_create(&s->spritesheet, 69, 321, 54, 31);
-        s->score_btn_up   = texture_region_create(&s->spritesheet, 69, 287, 54, 33);
-
         s->menu_btn_down = texture_region_create(&s->spritesheet, 197, 433, 54, 31);
         s->menu_btn_up   = texture_region_create(&s->spritesheet, 197, 399, 54, 33);
 
         s->restart_btn_sprite = sprite_new(s->restart_btn_up);
         s->menu_btn_sprite    = sprite_new(s->menu_btn_up);
-        s->score_btn_sprite   = sprite_new(s->score_btn_up);
         spr_center_origin(&s->restart_btn_sprite);
         spr_center_origin(&s->menu_btn_sprite);
-        spr_center_origin(&s->score_btn_sprite);
         s->restart_btn_sprite.scale_x = s->scale;
         s->restart_btn_sprite.scale_y = s->scale;
         s->menu_btn_sprite.scale_x    = s->scale;
         s->menu_btn_sprite.scale_y    = s->scale;
-        s->score_btn_sprite.scale_x   = s->scale;
-        s->score_btn_sprite.scale_y   = s->scale;
 
         // selector
-        s->options_count  = 3;
+        s->options_count  = 2;
         s->current_option = 1;
 
         Texture_Region frames[2] = { texture_region_create(&s->spritesheet, 128, 256, 16, 16),
@@ -395,12 +396,13 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         s->confirm_action_hint_sprite =
             sprite_new(texture_region_create(&s->spritesheet, 244, 292, 89, 9));
         s->pause_hint_sprite = sprite_new(texture_region_create(&s->spritesheet, 372, 277, 81, 7));
-        s->back_hint_sprite  = sprite_new(texture_region_create(&s->spritesheet, 372, 308, 102, 9));
+        s->resume_hint_sprite =
+            sprite_new(texture_region_create(&s->spritesheet, 372, 308, 115, 9));
 
         spr_center_origin(&s->move_selector_hint_sprite);
         spr_center_origin(&s->confirm_action_hint_sprite);
         spr_center_origin(&s->pause_hint_sprite);
-        spr_center_origin(&s->back_hint_sprite);
+        spr_center_origin(&s->resume_hint_sprite);
 
         s->screen_bottom_center =
             camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT });
@@ -409,10 +411,56 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         s->pause_hint_sprite.y = s->screen_bottom_center.y - 10.f;
     }
         return LOAD_MORE;
+    case 11: {
+        s->sub_score_font = bitmap_font_load("assets/images/score2_font.png", 7, 10, 1);
+    }
+        return LOAD_MORE;
+    case 12: {
+        s->new_label_sprite = sprite_new(texture_region_create(&s->spritesheet, 159, 260, 18, 9));
+
+        s->bronze_medal_region   = texture_region_create(&s->spritesheet, 4, 420, 24, 24);
+        s->silver_medal_region   = texture_region_create(&s->spritesheet, 36, 420, 24, 24);
+        s->gold_medal_region     = texture_region_create(&s->spritesheet, 68, 420, 24, 24);
+        s->platinum_medal_region = texture_region_create(&s->spritesheet, 100, 420, 24, 24);
+
+        s->medal_sprite = sprite_new(s->bronze_medal_region);
+
+        spr_center_origin(&s->new_label_sprite);
+        spr_center_origin(&s->medal_sprite);
+
+        s->medal_sprite.scale_x = s->medal_sprite.scale_y = s->scale;
+        s->new_label_sprite.scale_x = s->new_label_sprite.scale_y = s->scale;
+
+        s->medal_sprite.x = s->screen_center.x - 41.f;
+        s->medal_sprite.y = s->screen_center.y + 3.f;
+
+        s->new_label_sprite.x = s->screen_center.x + 17.f;
+        s->new_label_sprite.y = s->screen_center.y - 22.f;
+    }
+        return LOAD_MORE;
+    case 13:
+        s->point_sfx = sound_new(g_mixer, "assets/sounds/sfx_point.mp3");
+        s->wing_sfx  = sound_new(g_mixer, "assets/sounds/sfx_wing.mp3");
+        return LOAD_MORE;
     default:
         s->load_step = 0;
         return LOAD_DONE;
     }
+}
+
+static void enter(void *ctx, Screen_Manager *m)
+{
+    (void)m;
+    Game_Screen *g               = ctx;
+    analog_active                = false;
+    btn_pressed_y_offset         = 0.f;
+    current_sub_score            = 0;
+    curr_screen_state            = IN_GAME;
+    running_sub_score_transition = false;
+    g->show_medal                = false;
+    g->show_new_label            = false;
+    g->first_best_score          = false;
+    // g->best_score        = 0;
 }
 
 static void update(void *ctx, Screen_Manager *m)
@@ -423,7 +471,7 @@ static void update(void *ctx, Screen_Manager *m)
     switch (curr_screen_state) {
     case IN_GAME: {
         if (!g->start) {
-            if (input_was_btn_pressed(&input, PSP_CTRL_CROSS)) {
+            if (input_was_btn_pressed(&g_input, PSP_CTRL_CROSS)) {
                 g->start = true;
             }
 
@@ -440,7 +488,7 @@ static void update(void *ctx, Screen_Manager *m)
 
             update_bird(&g->bird, true);
 
-            if (input_was_btn_pressed(&input, PSP_CTRL_START)) {
+            if (input_was_btn_pressed(&g_input, PSP_CTRL_START)) {
                 curr_screen_state = PAUSED;
             }
         }
@@ -450,17 +498,55 @@ static void update(void *ctx, Screen_Manager *m)
             break;
 
         update_bird(&g->bird, false);
-        update_buttons_overlay(g);
+
+        if (!running_sub_score_transition)
+            update_buttons_overlay(g, m);
+
+        if (current_sub_score < g->main_score) {
+            sub_score_elapsed += g->delta;
+            if (sub_score_elapsed >= sub_score_increment_interval) {
+                sub_score_elapsed -= sub_score_increment_interval;
+                running_sub_score_transition = true;
+                current_sub_score++;
+
+                if (current_sub_score > g->main_score) {
+                    current_sub_score = g->main_score;
+                }
+            }
+        } else {
+            if (g->main_score > g->best_score) {
+                g->best_score = g->main_score;
+
+                if (!g->first_best_score) {
+                    g->first_best_score = true;
+                } else {
+                    g->show_new_label = true;
+                }
+            }
+            running_sub_score_transition = false;
+        }
+
+        if (g->best_score >= 10) {
+            g->medal_sprite.region = g->bronze_medal_region;
+            if (g->best_score >= 20)
+                g->medal_sprite.region = g->silver_medal_region;
+            else if (g->best_score >= 30)
+                g->medal_sprite.region = g->gold_medal_region;
+            else if (g->best_score >= 40)
+                g->medal_sprite.region = g->platinum_medal_region;
+
+            g->show_medal = true;
+        }
     } break;
     case PAUSED: {
         if (!g->start)
             break;
 
-        if (input_was_btn_pressed(&input, PSP_CTRL_START) ||
-            input_was_btn_pressed(&input, PSP_CTRL_CIRCLE)) {
+        if (input_was_btn_pressed(&g_input, PSP_CTRL_START) ||
+            input_was_btn_pressed(&g_input, PSP_CTRL_CIRCLE)) {
             curr_screen_state = IN_GAME;
         }
-        update_buttons_overlay(g);
+        update_buttons_overlay(g, m);
     } break;
     }
 
@@ -474,7 +560,7 @@ static void draw(void *ctx, const Screen_Manager *m)
     Game_Screen *s = ctx;
 
     clear(s->clear_color);
-    sprite_batch_begin(sprite_batch, &s->camera);
+    sprite_batch_begin(g_sprite_batch, &s->camera);
 
     draw_backgrounds_controller(&s->background_contrl);
     draw_pipes_controller(&s->pipes_contrl);
@@ -483,9 +569,9 @@ static void draw(void *ctx, const Screen_Manager *m)
     draw_bird(&s->bird);
 
     if (!s->start) {
-        sprite_draw(&s->jump_hint_upper_sprite, sprite_batch);
-        sprite_draw(&s->jump_hint_lower_sprite, sprite_batch);
-        sprite_draw(&s->get_ready_label_sprite, sprite_batch);
+        sprite_draw(&s->jump_hint_upper_sprite, g_sprite_batch);
+        sprite_draw(&s->jump_hint_lower_sprite, g_sprite_batch);
+        sprite_draw(&s->get_ready_label_sprite, g_sprite_batch);
     }
 
     switch (curr_screen_state) {
@@ -493,35 +579,72 @@ static void draw(void *ctx, const Screen_Manager *m)
         if (s->start) {
             char text_buf[16];
             snprintf(text_buf, 16, "%d", s->main_score);
-            Vec2 str_size = bitmap_font_measure_str(&s->main_score_font, text_buf);
+            Vec2 str_size = bitmap_font_measure_str(&s->main_score_font, text_buf, 1.f, 1.f);
             sprite_batch_draw_str(
-                sprite_batch,
+                g_sprite_batch,
                 &s->main_score_font,
                 text_buf,
                 s->screen_top_center.x - str_size.x * 0.5f,
                 s->screen_top_center.y + 20.f,
+                1.f,
+                1.f,
                 COLOR_WHITE
             );
         }
 
-        sprite_draw(&s->pause_hint_sprite, sprite_batch);
+        sprite_draw(&s->pause_hint_sprite, g_sprite_batch);
     }
 
     break;
-    case GAME_OVER:
-        sprite_draw(&s->game_over_label_sprite, sprite_batch);
-        sprite_draw(&s->score_board_sprite, sprite_batch);
+    case GAME_OVER: {
+        sprite_draw(&s->game_over_label_sprite, g_sprite_batch);
+        sprite_draw(&s->score_board_sprite, g_sprite_batch);
+
+        float x_offset = 57.f;
+        char  score_buf[16];
+        snprintf(score_buf, 16, "%d", current_sub_score);
+        Vec2 score_text_size = bitmap_font_measure_str(&s->sub_score_font, score_buf, 1.f, 1.f);
+        sprite_batch_draw_str(
+            g_sprite_batch,
+            &s->sub_score_font,
+            score_buf,
+            s->screen_center.x + x_offset - score_text_size.x,
+            s->screen_center.y - 16.f,
+            1.f,
+            1.f,
+            COLOR_WHITE
+        );
+
+        snprintf(score_buf, 16, "%d", s->best_score);
+        score_text_size = bitmap_font_measure_str(&s->sub_score_font, score_buf, 1.5f, 1.5f);
+        sprite_batch_draw_str(
+            g_sprite_batch,
+            &s->sub_score_font,
+            score_buf,
+            s->screen_center.x + x_offset - score_text_size.x,
+            s->screen_center.y + 10.f,
+            1.5f,
+            1.5f,
+            COLOR_WHITE
+        );
+
+        if (s->show_new_label)
+            sprite_draw(&s->new_label_sprite, g_sprite_batch);
+
+        if (s->show_medal)
+            sprite_draw(&s->medal_sprite, g_sprite_batch);
+
         draw_buttons_overlay(s);
-        break;
+    } break;
     case PAUSED:
         draw_buttons_overlay(s);
-        // sprite_draw(&s->spri, Sprite_Batch *)
+        // sprite_draw(&s->spri, g_Sprite_Batch *)
         break;
     }
 
-    sprite_batch_end(sprite_batch);
+    sprite_batch_end(g_sprite_batch);
 
-    phw_debug_renderer_draw(s->debug_renderer, &s->camera);
+    // phw_debug_renderer_draw(s->debug_renderer, &s->camera);
 }
 
 static void exit_screen(void *ctx, Screen_Manager *m)
@@ -532,15 +655,21 @@ static void exit_screen(void *ctx, Screen_Manager *m)
     free_grounds_controller(&s->ground_contrl);
     free_pipes_controller(&s->pipes_contrl);
     free_bird(&s->bird);
+    sound_free(&s->point_sfx);
+    sound_free(&s->wing_sfx);
     animation_free(&s->jump_hint_lower_anim);
     bitmap_font_unload(&s->main_score_font);
+    bitmap_font_unload(&s->sub_score_font);
     texture2d_unload(&s->spritesheet);
     phw_debug_renderer_free(s->debug_renderer);
-    s->load_step = 0;
+    phw_world_clear(&g_world);
+    s->load_step      = 0;
+    s->start          = false;
+    curr_screen_state = IN_GAME;
 }
 
 Screen_Desc game_screen_init(Game_Screen *s)
 {
-    s->desc = (Screen_Desc){ s, NULL, update, draw, exit_screen, load };
+    s->desc = (Screen_Desc){ s, enter, update, draw, exit_screen, load };
     return s->desc;
 }

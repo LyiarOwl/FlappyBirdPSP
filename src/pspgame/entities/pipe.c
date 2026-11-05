@@ -14,7 +14,7 @@ static Pipe new_pipe(void *screen)
     pipe.screen = screen;
 
     pipe.body = phw_world_create_character_body(
-        &world, phw_create_rect_coll_shape((Phw_Vec2){ 26 / 2.f, 160 / 2.f })
+        &g_world, phw_create_rect_coll_shape((Phw_Vec2){ 26 / 2.f, 160 / 2.f })
     );
     pipe.body->user_layer_mask = LAYER_MASK_PIPE;
 
@@ -26,7 +26,7 @@ void draw_pipe(Pipe *pipe)
     Vec2 pos       = get_pipe_position(pipe);
     pipe->sprite.x = pos.x;
     pipe->sprite.y = pos.y;
-    sprite_draw(&pipe->sprite, sprite_batch);
+    sprite_draw(&pipe->sprite, g_sprite_batch);
 }
 
 void set_pipe_position(Pipe *pipe, Vec2 pos)

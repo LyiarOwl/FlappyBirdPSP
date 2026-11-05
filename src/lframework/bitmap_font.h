@@ -78,7 +78,9 @@ i32 bitmap_font_set_text_buffer_to_draw_array_i32(
     char *text_buffer, usize text_buffer_length, const int array[], usize array_length, i32 columns
 );
 
-Vec2 bitmap_font_measure_str(const Bitmap_Font *font, const char *text);
+Vec2 bitmap_font_measure_str(
+    const Bitmap_Font *font, const char *text, float scale_x, float scale_y
+);
 
 void bitmap_font_unload(Bitmap_Font *);
 

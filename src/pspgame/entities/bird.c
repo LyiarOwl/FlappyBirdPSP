@@ -1,4 +1,5 @@
 #include "bird.h"
+#include "SDL3_mixer/SDL_mixer.h"
 #include "layers_mask.h"
 #include "lframework/animation.h"
 #include "pspgame/globals.h"
@@ -20,8 +21,8 @@ static bool check_pipes_collision(Bird *bird)
 {
     Phw_Vec2 pos = phw_body_get_position(bird->body);
 
-    return phw_world_colliding_at(
-        &world,
+    bool collision = phw_world_colliding_at(
+        &g_world,
         pos,
         bird->body->collision_shape,
         true,
@@ -31,13 +32,27 @@ static bool check_pipes_collision(Bird *bird)
         0,
         0
     );
+
+    if (collision) {
+        if (!bird->entered_pipe_collision) {
+            MIX_StopTrack(bird->hit_sfx.track, 0);
+            MIX_PlayTrack(bird->hit_sfx.track, 0);
+            MIX_StopTrack(bird->die_sfx.track, 0);
+            MIX_PlayTrack(bird->die_sfx.track, 0);
+
+            bird->entered_pipe_collision = true;
+        }
+    }
+    // bird->entered_pipe_collision = collision;
+
+    return collision;
 }
 
 static bool check_ground_collision(Bird *bird, Phw_Vec2 vel)
 {
-    Phw_Vec2 pos = phw_body_get_position(bird->body);
-    return phw_world_colliding_at(
-        &world,
+    Phw_Vec2 pos       = phw_body_get_position(bird->body);
+    bool     collision = phw_world_colliding_at(
+        &g_world,
         (Phw_Vec2){ pos.x + vel.x, pos.y + vel.y },
         bird->body->collision_shape,
         false,
@@ -47,13 +62,22 @@ static bool check_ground_collision(Bird *bird, Phw_Vec2 vel)
         0,
         0
     );
+
+    if (collision) {
+        if (!bird->entered_ground_collision && !bird->entered_pipe_collision) {
+            bird->entered_ground_collision = true;
+            MIX_StopTrack(bird->hit_sfx.track, 0);
+            MIX_PlayTrack(bird->hit_sfx.track, 0);
+        }
+    }
+    return collision;
 }
 
 static void handle_entering_score_region(Bird *bird)
 {
     Phw_Vec2 pos       = phw_body_get_position(bird->body);
     bool     collision = phw_world_colliding_at(
-        &world,
+        &g_world,
         pos,
         bird->body->collision_shape,
         false,
@@ -112,13 +136,17 @@ Bird new_bird(Texture2D *texture, float x, float y, void *screen)
     bird.sprite = sprite_new(frames[0]);
     spr_center_origin(&bird.sprite);
 
-    bird.body = phw_world_create_character_body(&world, phw_create_circle_coll_shape(3.f));
+    bird.body = phw_world_create_character_body(&g_world, phw_create_circle_coll_shape(6.f));
     bird.body->user_layer_mask = LAYER_MASK_BIRD;
 
     phw_body_set_position(bird.body, (Phw_Vec2){ x, y });
     bird.initial_position = (Phw_Vec2){ x, y };
 
     bird.score_region_collision_observers = observers_list_new(1);
+
+    bird.wing_sfx = sound_new(g_mixer, "assets/sounds/sfx_wing.mp3");
+    bird.hit_sfx  = sound_new(g_mixer, "assets/sounds/sfx_hit.mp3");
+    bird.die_sfx  = sound_new(g_mixer, "assets/sounds/sfx_die.mp3");
 
     return bird;
 }
@@ -131,9 +159,11 @@ void update_bird(Bird *bird, bool allow_jump)
     }
 
     if (allow_jump) {
-        if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
+        if (input_was_btn_released(&g_input, PSP_CTRL_CROSS)) {
             bird->vel.y             = -bird->jump_impulse;
             bird->animation_elapsed = 0.f;
+            MIX_StopTrack(bird->wing_sfx.track, 0);
+            MIX_PlayTrack(bird->wing_sfx.track, 0);
         }
     }
 
@@ -175,13 +205,18 @@ void draw_bird(Bird *bird)
         bird->sprite.region = *animation_get_keyframe(&bird->fly_anim, bird->animation_elapsed);
     }
 
-    sprite_draw(&bird->sprite, sprite_batch);
+    sprite_draw(&bird->sprite, g_sprite_batch);
 }
 
 void free_bird(Bird *bird)
 {
     if (!bird)
         return;
+
+    sound_free(&bird->wing_sfx);
+    sound_free(&bird->hit_sfx);
+    sound_free(&bird->die_sfx);
+
     observers_list_free(&bird->score_region_collision_observers);
 
     animation_free(&bird->fly_anim);
@@ -198,4 +233,6 @@ void reset_bird(Bird *bird)
 {
     bird->vel = (Phw_Vec2){ 0 };
     set_bird_position(bird, bird->initial_position.x, bird->initial_position.y);
+    bird->entered_ground_collision = false;
+    bird->entered_pipe_collision   = false;
 }

@@ -11,6 +11,7 @@
 #include "pspgame/entities/backgrounds_controller.h"
 #include "pspgame/entities/grounds_controller.h"
 #include "pspgame/screen_manager.h"
+#include "pspgame/sound.h"
 
 typedef struct
 {
@@ -30,21 +31,27 @@ typedef struct
     Sprite selector_sprite;
     Sprite select_hint_sprite;
     Sprite confirm_hint_sprite;
+    Sprite personal_credits_sprite;
+    Sprite return_hint_sprite;
 
     Animation selector_anim;
 
     Vec2 screen_mid_bottom;
     Vec2 screen_mid_top;
-    Vec2 description_str_size;
+    Vec2 screen_center;
 
     f32 selector_anim_elapsed;
     f32 delta;
+
+    Sound wing_sfx;
 
     color bg_color;
     color black_color;
     int   current_option;
     int   options_count;
     int   load_step;
+    bool  show_credits;
+    float scale;
 
     Texture_Region play_btn_up;
     Texture_Region play_btn_down;

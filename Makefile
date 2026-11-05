@@ -1,5 +1,7 @@
-TARGET = psp_game
-PSP_EBOOT_TITLE = psp_game
+BUILD_PRX = 1
+TARGET = flappy_bird
+PSP_EBOOT_TITLE = Flappy Bird
+PSP_EBOOT_ICON = assets/ICON0.png
 
 # ---------------------------------------------------------------------------
 # Sources: every .c under src/, at any depth (main.c, module/*.c, ...)
@@ -13,14 +15,17 @@ OBJS    = $(SRCS:.c=.o)
 # build.mak turns each INCDIR entry into -I<entry>.
 INCDIR  = $(shell find $(SRC_DIR) -type d | sort)
 
-CFLAGS   = -O2 -G0 -Wall -g
+PSPDEV   ?= $(HOME)/pspdev
+PKGCONF  := $(PSPDEV)/bin/psp-pkg-config
+
+CFLAGS   = -O2 -G0 -Wall -g $(shell $(PKGCONF) --cflags sdl3 sdl3-mixer)c
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS  = $(CFLAGS)
 
 # build.mak already links pspdebug, pspdisplay, pspge, pspctrl and pspsdk.
-LIBDIR  =
-LIBS    = -lpspgum -lpspgu -lpspfpu -lm
-LDFLAGS =
+LIBDIR  :=
+LIBS    := $(shell $(PKGCONF) --static --libs sdl3 sdl3-mixer) -lpspgum -lpspgu -lpspfpu -lm -lpspmp3 -lpspaudio -lpsputility
+LDFLAGS :=
 
 EXTRA_TARGETS = EBOOT.PBP
 

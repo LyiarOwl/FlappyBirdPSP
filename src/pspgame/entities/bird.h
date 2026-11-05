@@ -1,24 +1,33 @@
 #pragma once
 
+#include "SDL3_mixer/SDL_mixer.h"
 #include "lframework/animation.h"
 #include "lframework/sprite.h"
 #include "pspgame/observers_list.h"
 
 #include "phwind/phw_character_body.h"
 #include "phwind/phw_vec2.h"
+#include "pspgame/sound.h"
 
 typedef void (*on_bird_score_region_collision_cb)(void);
 
 typedef struct bird
 {
-    void    *screen;
+    void *screen;
+
     Phw_Vec2 initial_position;
     Phw_Vec2 vel;
     f32      grav;
     f32      max_vert_speed;
     f32      jump_impulse;
     f32      animation_elapsed;
-    bool     entered_score_collision;
+
+    bool  entered_score_collision;
+    bool  entered_pipe_collision;
+    bool  entered_ground_collision;
+    Sound wing_sfx;
+    Sound hit_sfx;
+    Sound die_sfx;
 
     Animation fly_anim;
     Sprite    sprite;

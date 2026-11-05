@@ -84,12 +84,12 @@ static void draw(void *ctx, const Screen_Manager *m)
     Loading_Screen *s = ctx;
 
     clear(bg_color);
-    sprite_batch_begin(sprite_batch, NULL);
+    sprite_batch_begin(g_sprite_batch, NULL);
 
-    sprite_draw(&s->bird_sprite, sprite_batch);
-    sprite_draw(&s->loading_text_sprite, sprite_batch);
+    sprite_draw(&s->bird_sprite, g_sprite_batch);
+    sprite_draw(&s->loading_text_sprite, g_sprite_batch);
 
-    sprite_batch_end(sprite_batch);
+    sprite_batch_end(g_sprite_batch);
 }
 
 static void exit(void *ctx, Screen_Manager *m)

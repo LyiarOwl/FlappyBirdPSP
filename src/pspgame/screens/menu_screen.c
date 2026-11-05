@@ -1,4 +1,5 @@
 #include "menu_screen.h"
+#include "SDL3_mixer/SDL_mixer.h"
 #include "lframework/animation.h"
 #include "lframework/bitmap_font.h"
 #include "lframework/camera2d.h"
@@ -14,6 +15,7 @@
 #include "pspgame/entities/grounds_controller.h"
 #include "pspgame/globals.h"
 #include "pspgame/screen_manager.h"
+#include "pspgame/sound.h"
 #include "screen_ids.h"
 #include "settings.h"
 
@@ -21,8 +23,7 @@
 #define GENERAL_FONT "assets/images/general_font.png"
 #define DESCRIPTION "FAN GAME CREATED BY @LYIAR_U (v1.0.0)"
 
-static bool analog_active      = false;
-static f32  prev_current_btn_y = 0.f;
+static bool analog_active = false;
 
 static Load_Result load(void *ctx, Screen_Manager *m)
 {
@@ -39,6 +40,7 @@ static Load_Result load(void *ctx, Screen_Manager *m)
     case 1:
         s->camera      = camera2d_new();
         s->camera.zoom = 1.1f;
+        s->scale       = 1.25f;
         return LOAD_MORE;
     case 2:
         s->background_controller = new_backgrounds_controller(&s->spritesheet, 5, &s->camera, 0.5f);
@@ -58,15 +60,14 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         Vec2 center =
             camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f });
 
-        f32 scl = 1.25f;
         f32 gap = 30.f;
 
         s->game_logo_sprite = sprite_new(texture_region_create(&s->spritesheet, 19, 259, 91, 26));
         spr_center_origin(&s->game_logo_sprite);
         s->game_logo_sprite.x       = center.x;
         s->game_logo_sprite.y       = center.y - gap;
-        s->game_logo_sprite.scale_x = scl;
-        s->game_logo_sprite.scale_y = scl;
+        s->game_logo_sprite.scale_x = s->scale;
+        s->game_logo_sprite.scale_y = s->scale;
 
         s->play_btn_up   = texture_region_create(&s->spritesheet, 5, 287, 54, 33);
         s->play_btn_down = texture_region_create(&s->spritesheet, 5, 321, 54, 31);
@@ -75,8 +76,8 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         spr_center_origin(&s->play_btn_sprite);
         s->play_btn_sprite.x       = center.x - 40.f;
         s->play_btn_sprite.y       = center.y + gap;
-        s->play_btn_sprite.scale_x = scl;
-        s->play_btn_sprite.scale_y = scl;
+        s->play_btn_sprite.scale_x = s->scale;
+        s->play_btn_sprite.scale_y = s->scale;
 
         s->score_btn_up   = texture_region_create(&s->spritesheet, 69, 287, 54, 33);
         s->score_btn_down = texture_region_create(&s->spritesheet, 69, 321, 54, 31);
@@ -85,8 +86,8 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         spr_center_origin(&s->score_btn_sprite);
         s->score_btn_sprite.x       = center.x + 40.f;
         s->score_btn_sprite.y       = center.y + gap;
-        s->score_btn_sprite.scale_x = scl;
-        s->score_btn_sprite.scale_y = scl;
+        s->score_btn_sprite.scale_x = s->scale;
+        s->score_btn_sprite.scale_y = s->scale;
 
         s->options_count  = 2;
         s->current_option = 0;
@@ -99,17 +100,14 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         sprite_set_origin_norm(&s->selector_sprite, 0.55f, 0.5f);
         s->selector_sprite.x       = s->play_btn_sprite.x;
         s->selector_sprite.y       = s->play_btn_sprite.y - 28.f;
-        s->selector_sprite.scale_x = scl;
-        s->selector_sprite.scale_y = scl;
+        s->selector_sprite.scale_x = s->scale;
+        s->selector_sprite.scale_y = s->scale;
         s->selector_anim_elapsed   = 0.f;
         s->delta                   = 1.f / 60.f;
     }
         return LOAD_MORE;
     case 6: {
         s->general_font = bitmap_font_load(GENERAL_FONT, 8, 8, 0);
-
-        s->screen_mid_top = camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, 0 });
-        s->description_str_size = bitmap_font_measure_str(&s->general_font, DESCRIPTION);
 
         s->screen_mid_bottom =
             camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT });
@@ -121,13 +119,11 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         spr_center_origin(&s->select_hint_sprite);
         spr_center_origin(&s->confirm_hint_sprite);
 
-        float scl = 1.25f;
+        s->select_hint_sprite.scale_x = s->scale;
+        s->select_hint_sprite.scale_y = s->scale;
 
-        s->select_hint_sprite.scale_x = scl;
-        s->select_hint_sprite.scale_y = scl;
-
-        s->confirm_hint_sprite.scale_x = scl;
-        s->confirm_hint_sprite.scale_y = scl;
+        s->confirm_hint_sprite.scale_x = s->scale;
+        s->confirm_hint_sprite.scale_y = s->scale;
 
         s->select_hint_sprite.x = s->screen_mid_bottom.x;
         s->select_hint_sprite.y = s->screen_mid_bottom.y - 35;
@@ -135,6 +131,33 @@ static Load_Result load(void *ctx, Screen_Manager *m)
         s->confirm_hint_sprite.x = s->screen_mid_bottom.x;
         s->confirm_hint_sprite.y = s->screen_mid_bottom.y - 20;
     }
+        return LOAD_MORE;
+    case 7: {
+        s->screen_center =
+            camera2d_screen_to_world(&s->camera, (Vec2){ SCREEN_WIDTH / 2.f, SCREEN_HEIGHT / 2.f });
+
+        s->personal_credits_sprite =
+            sprite_new(texture_region_create(&s->spritesheet, 311, 337, 115, 65));
+
+        s->return_hint_sprite = sprite_new(texture_region_create(&s->spritesheet, 292, 260, 86, 9));
+
+        spr_center_origin(&s->personal_credits_sprite);
+        spr_center_origin(&s->return_hint_sprite);
+
+        s->personal_credits_sprite.scale_x = s->scale;
+        s->personal_credits_sprite.scale_y = s->scale;
+        s->return_hint_sprite.scale_x      = s->scale;
+        s->return_hint_sprite.scale_y      = s->scale;
+
+        s->personal_credits_sprite.x = s->screen_center.x;
+        s->personal_credits_sprite.y = s->screen_center.y;
+
+        s->return_hint_sprite.x = s->screen_center.x;
+        s->return_hint_sprite.y = s->screen_center.y + 50.f;
+    }
+        return LOAD_MORE;
+    case 8:
+        s->wing_sfx = sound_new(g_mixer, "assets/sounds/sfx_wing.mp3");
         return LOAD_MORE;
     default:
         s->load_step = 0;
@@ -164,61 +187,83 @@ static void update(void *ctx, Screen_Manager *m)
     update_backgrounds_controller(&g->background_controller);
     update_grounds_controller(&g->ground_controller);
 
-    // move cursor
-    if (input_was_btn_pressed(&input, PSP_CTRL_RIGHT))
-        move_selector_right(g);
-    else if (input_was_btn_pressed(&input, PSP_CTRL_LEFT))
-        move_selector_left(g);
+    if (!g->show_credits) {
 
-    if (f32_abs(input.analog.x) > 0.25f) {
-        if (!analog_active) {
-            analog_active = true;
-            if (input.analog.x > 0)
+        // move cursor
+        if (input_is_btn_up(&g_input, PSP_CTRL_CROSS)) {
+            if (input_was_btn_pressed(&g_input, PSP_CTRL_RIGHT))
                 move_selector_right(g);
-            else if (input.analog.x < 0)
+            else if (input_was_btn_pressed(&g_input, PSP_CTRL_LEFT))
                 move_selector_left(g);
+
+            if (f32_abs(g_input.analog.x) > 0.25f) {
+                if (!analog_active) {
+                    analog_active = true;
+                    if (g_input.analog.x > 0)
+                        move_selector_right(g);
+                    else if (g_input.analog.x < 0)
+                        move_selector_left(g);
+                }
+            } else {
+                analog_active = false;
+            }
+        }
+
+        // update cursor position and assign proper up/down btn's sprite
+        Sprite         *current_btn      = NULL;
+        Texture_Region *current_btn_down = NULL;
+        Texture_Region *current_btn_up   = NULL;
+        switch (g->current_option) {
+        case 0:
+            g->selector_sprite.x = g->play_btn_sprite.x;
+
+            current_btn      = &g->play_btn_sprite;
+            current_btn_down = &g->play_btn_down;
+            current_btn_up   = &g->play_btn_up;
+            break;
+        case 1:
+            g->selector_sprite.x = g->score_btn_sprite.x;
+
+            current_btn      = &g->score_btn_sprite;
+            current_btn_down = &g->score_btn_down;
+            current_btn_up   = &g->score_btn_up;
+            break;
+        }
+
+        if (input_was_btn_pressed(&g_input, PSP_CTRL_CROSS)) {
+            g->selector_anim_elapsed = 0.3f;
+            current_btn->region      = *current_btn_down;
+            current_btn->y += 2.f;
+            MIX_StopTrack(g->wing_sfx.track, 0);
+            MIX_PlayTrack(g->wing_sfx.track, 0);
+        }
+        if (input_was_btn_released(&g_input, PSP_CTRL_CROSS)) {
+            current_btn->region = *current_btn_up;
+            current_btn->y -= 2.f;
+            g->selector_anim_elapsed = 0.f;
+        }
+
+        if (input_is_btn_up(&g_input, PSP_CTRL_CROSS))
+            g->selector_anim_elapsed += g->delta;
+
+        g->selector_sprite.region =
+            *animation_get_keyframe(&g->selector_anim, g->selector_anim_elapsed);
+
+        if (input_was_btn_released(&g_input, PSP_CTRL_CROSS)) {
+            switch (g->current_option) {
+            case 0:
+                screen_manager_request(m, SCR_GAME);
+                break;
+            case 1:
+                g->show_credits = true;
+                break;
+            }
         }
     } else {
-        analog_active = false;
+        if (input_was_btn_pressed(&g_input, PSP_CTRL_CIRCLE)) {
+            g->show_credits = false;
+        }
     }
-
-    // update cursor position and assign proper up/down btn's sprite
-    Sprite         *current_btn      = NULL;
-    Texture_Region *current_btn_down = NULL;
-    Texture_Region *current_btn_up   = NULL;
-    switch (g->current_option) {
-    case 0:
-        g->selector_sprite.x = g->play_btn_sprite.x;
-
-        current_btn      = &g->play_btn_sprite;
-        current_btn_down = &g->play_btn_down;
-        current_btn_up   = &g->play_btn_up;
-        break;
-    case 1:
-        g->selector_sprite.x = g->score_btn_sprite.x;
-
-        current_btn      = &g->score_btn_sprite;
-        current_btn_down = &g->score_btn_down;
-        current_btn_up   = &g->score_btn_up;
-        break;
-    }
-
-    if (input_was_btn_pressed(&input, PSP_CTRL_CROSS)) {
-        g->selector_anim_elapsed = 0.3f;
-        current_btn->region      = *current_btn_down;
-        current_btn->y += 2.f;
-    }
-    if (input_was_btn_released(&input, PSP_CTRL_CROSS)) {
-        current_btn->region = *current_btn_up;
-        current_btn->y -= 2.f;
-        g->selector_anim_elapsed = 0.f;
-    }
-
-    if (input_is_btn_up(&input, PSP_CTRL_CROSS))
-        g->selector_anim_elapsed += g->delta;
-
-    g->selector_sprite.region =
-        *animation_get_keyframe(&g->selector_anim, g->selector_anim_elapsed);
 
     // if (IsKeyPressed(KEY_F2))
     //     screen_manager_request(m, SCR_GAME);
@@ -230,19 +275,24 @@ static void draw(void *ctx, const Screen_Manager *m)
     Menu_Screen *s = ctx;
     clear(s->bg_color);
 
-    sprite_batch_begin(sprite_batch, &s->camera);
+    sprite_batch_begin(g_sprite_batch, &s->camera);
 
     draw_backgrounds_controller(&s->background_controller);
     draw_grounds_controller(&s->ground_controller);
 
-    sprite_draw(&s->game_logo_sprite, sprite_batch);
-    sprite_draw(&s->play_btn_sprite, sprite_batch);
-    sprite_draw(&s->score_btn_sprite, sprite_batch);
-    sprite_draw(&s->selector_sprite, sprite_batch);
-    sprite_draw(&s->select_hint_sprite, sprite_batch);
-    sprite_draw(&s->confirm_hint_sprite, sprite_batch);
+    if (!s->show_credits) {
+        sprite_draw(&s->game_logo_sprite, g_sprite_batch);
+        sprite_draw(&s->play_btn_sprite, g_sprite_batch);
+        sprite_draw(&s->score_btn_sprite, g_sprite_batch);
+        sprite_draw(&s->selector_sprite, g_sprite_batch);
+        sprite_draw(&s->select_hint_sprite, g_sprite_batch);
+        sprite_draw(&s->confirm_hint_sprite, g_sprite_batch);
+    } else {
+        sprite_draw(&s->personal_credits_sprite, g_sprite_batch);
+        sprite_draw(&s->return_hint_sprite, g_sprite_batch);
+    }
 
-    sprite_batch_end(sprite_batch);
+    sprite_batch_end(g_sprite_batch);
 }
 static void exit_screen(void *ctx, Screen_Manager *m)
 {
@@ -250,12 +300,13 @@ static void exit_screen(void *ctx, Screen_Manager *m)
     Menu_Screen *s = ctx;
     free_grounds_controller(&s->ground_controller);
     free_backgrounds_controller(&s->background_controller);
+    sound_free(&s->wing_sfx);
     bitmap_font_unload(&s->general_font);
     texture2d_unload(&s->spritesheet);
     s->load_step = 0;
 }
 Screen_Desc menu_screen_init(Menu_Screen *s)
 {
-    s->desc      = (Screen_Desc){ s, NULL, update, draw, exit_screen, load };
+    s->desc = (Screen_Desc){ s, NULL, update, draw, exit_screen, load };
     return s->desc;
 }

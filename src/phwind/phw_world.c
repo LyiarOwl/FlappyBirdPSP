@@ -2,6 +2,8 @@
 #include "phw_collision.h"
 #include "phw_common.h"
 #include "phw_spatial_grid_bucket.h"
+#include "phwind/phw_array.h"
+#include "phwind/phw_spatial_grid.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -571,4 +573,17 @@ void phw_world_destroy(Phw_World *world)
     phw_array_destroy(&world->bodies);
     phw_array_destroy(&world->static_bodies);
     *world = (Phw_World){ 0 };
+}
+
+void phw_world_clear(Phw_World *w)
+{
+    if (!w) {
+        return;
+    }
+
+    phw_spatialgrid_clear_buckets(&w->spatial_grid);
+    for (usize i = 0; i < w->bodies_count; i++) {
+        phw_array_remove_at(&w->bodies, i);
+    }
+    w->bodies_count = 0;
 }

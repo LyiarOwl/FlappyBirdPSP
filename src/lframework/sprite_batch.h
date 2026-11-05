@@ -86,7 +86,14 @@ void sprite_batch_draw_tex_pro(
 );
 
 void sprite_batch_draw_str(
-    Sprite_Batch *, const Bitmap_Font *, const char *text, f32 x, f32 y, color tint
+    Sprite_Batch *,
+    const Bitmap_Font *,
+    const char *text,
+    f32         x,
+    f32         y,
+    f32         scale_x,
+    f32         scale_y,
+    color       tint
 );
 
 #ifdef __cplusplus

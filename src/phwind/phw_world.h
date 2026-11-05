@@ -107,6 +107,8 @@ usize phw_world_query_bodies_with_mask(
     usize bodies_buffer_length, Phw_Pipeline_Mask pipeline_mask
 );
 
+void phw_world_clear(Phw_World *);
+
 /* Releases owned allocations but NOT the world struct itself (value-created). */
 void phw_world_destroy(Phw_World *);
 

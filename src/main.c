@@ -5,8 +5,14 @@
 #include <pspsdk.h>
 #include <pspsysmem.h>
 #include <pspuser.h>
+#include <stdbool.h>
 #include <stddef.h>
 
+#include "SDL3/SDL_audio.h"
+#include "SDL3/SDL_error.h"
+#include "SDL3/SDL_hints.h"
+#include "SDL3/SDL_init.h"
+#include "SDL3_mixer/SDL_mixer.h"
 #include "lframework/bitmap_font.h"
 #include "lframework/colors.h"
 #include "lframework/common.h"
@@ -53,10 +59,33 @@ int main(void)
 {
     init();
 
-    input        = input_new(true);
-    sprite_batch = sprite_batch_new(2048UL);
+    SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "512");
+    if (!SDL_Init(SDL_INIT_AUDIO)) {
+        l_assert(false, "[main]: unable to init sdl audio");
+        l_printf("%s", SDL_GetError());
+        return 1;
+    }
+
+    if (!MIX_Init()) {
+        l_assert(false, "[main]: unable to init sdl mixer");
+        l_printf("%s", SDL_GetError());
+        SDL_Quit();
+        return 2;
+    }
+
+    g_mixer = MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
+    if (!g_mixer) {
+        l_assert(false, "[main]: unable to init sdl mixer");
+        l_printf("%s", SDL_GetError());
+        MIX_Quit();
+        SDL_Quit();
+        return 3;
+    }
+
+    g_input        = input_new(true);
+    g_sprite_batch = sprite_batch_new(2048UL);
     // clang-format off
-    world = phw_world_create_ex(
+    g_world = phw_world_create_ex(
         (Phw_Rect){ {0, 0}, {SCREEN_WIDTH, SCREEN_HEIGHT} },
         1,
         1,
@@ -67,8 +96,8 @@ int main(void)
     );
     // clang-format on
 
-    // Game_Screens   *game    = game_screens_new();
-    // Screen_Manager *manager = game_new_screens_manager(game);
+    Game_Screens   *game    = game_screens_new();
+    Screen_Manager *manager = game_new_screens_manager(game);
 
     // Menu_Screen data        = { 0 };
     // Screen_Desc menu        = menu_screen_init(&data);
@@ -78,9 +107,10 @@ int main(void)
     // Screen_Desc    load = loading_screen_init(&data);
     // load.enter(&data, NULL);
 
-    Game_Screen data        = { 0 };
-    Screen_Desc game        = game_screen_init(&data);
-    bool        game_loaded = false;
+    // Game_Screen data        = { 0 };
+    // Screen_Desc game        = game_screen_init(&data);
+    // bool        game_loaded = false;
+    // game.enter(&data, NULL);
 
     while (1) {
         // if (!menu_loaded) {
@@ -90,22 +120,22 @@ int main(void)
         //     }
         // }
 
-        if (!game_loaded) {
-            Load_Result result = game.load(&data, NULL);
-            if (result == LOAD_DONE) {
-                game_loaded = true;
-            }
-        }
+        // if (!game_loaded) {
+        //     Load_Result result = game.load(&data, NULL);
+        //     if (result == LOAD_DONE) {
+        //         game_loaded = true;
+        //     }
+        // }
 
         // update
-        input_update(&input);
-        // screen_manager_update(manager);
+        input_update(&g_input);
+        screen_manager_update(manager);
 
         // if (menu_loaded)
         //     menu.update(&data, NULL);
 
-        if (game_loaded)
-            game.update(&data, NULL);
+        // if (game_loaded)
+        //     game.update(&data, NULL);
 
         // load.update(&data, NULL);
 
@@ -115,10 +145,10 @@ int main(void)
         // if (menu_loaded)
         //     menu.draw(&data, NULL);
 
-        if (game_loaded)
-            game.draw(&data, NULL);
+        // if (game_loaded)
+        //     game.draw(&data, NULL);
 
-        // screen_manager_draw(manager);
+        screen_manager_draw(manager);
 
         // load.draw(&data, NULL);
 
@@ -127,7 +157,7 @@ int main(void)
         sceDisplayWaitVblank();
         sceGuSwapBuffers();
 
-        // screen_manager_commit(manager);
+        screen_manager_commit(manager);
     }
 
     return 0;

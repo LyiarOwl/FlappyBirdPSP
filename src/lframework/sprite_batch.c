@@ -318,7 +318,14 @@ void sprite_batch_draw_tex_pro(
 }
 
 void sprite_batch_draw_str(
-    Sprite_Batch *batch, const Bitmap_Font *font, const char *text, f32 x, f32 y, color tint
+    Sprite_Batch      *batch,
+    const Bitmap_Font *font,
+    const char        *text,
+    f32                x,
+    f32                y,
+    f32                scale_x,
+    f32                scale_y,
+    color              tint
 )
 {
     SB_REQUIRE(batch, "sprite_batch_draw_str", "spritebatch reference is null!");
@@ -336,7 +343,7 @@ void sprite_batch_draw_str(
 
         if (c == '\n') {
             cursor_x = x;
-            cursor_y += font->char_height;
+            cursor_y += font->char_height * scale_y;
             continue;
         }
 
@@ -361,12 +368,12 @@ void sprite_batch_draw_str(
             0.f,
             0.f,
             0.f,
-            1.f,
-            1.f,
+            scale_x,
+            scale_y,
             false,
             false
         );
 
-        cursor_x += font->char_width + font->letter_spacing;
+        cursor_x += (font->char_width + font->letter_spacing) * scale_x;
     }
 }

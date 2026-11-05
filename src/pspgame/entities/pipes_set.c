@@ -14,7 +14,7 @@ Pipes_Set new_pipes_set(const Texture2D *texture, void *screen)
     set.upper_pipe    = create_upper_pipe(texture, screen);
 
     set.score_body = phw_world_create_character_body(
-        &world, phw_create_rect_coll_shape((Phw_Vec2){ 2.f, 25.f })
+        &g_world, phw_create_rect_coll_shape((Phw_Vec2){ 2.f, 25.f })
     );
     set.score_body->user_layer_mask = LAYER_MASK_SCORE;
 

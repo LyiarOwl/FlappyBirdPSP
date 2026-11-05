@@ -54,15 +54,17 @@ i32 bitmap_font_set_text_buffer_to_draw_array_i32(
     return offset;
 }
 
-Vec2 bitmap_font_measure_str(const Bitmap_Font *font, const char *text)
+Vec2 bitmap_font_measure_str(
+    const Bitmap_Font *font, const char *text, float scale_x, float scale_y
+)
 {
     if (!font || !text)
         return (Vec2){ 0 };
 
     f32   max_width   = 0.f;
     f32   line_width  = 0.f;
-    f32   line_height = (f32)font->char_height;
-    f32   advance     = (f32)font->char_width + font->letter_spacing;
+    f32   line_height = (f32)(font->char_height) * scale_y;
+    f32   advance     = (f32)(font->char_width + font->letter_spacing) * scale_x;
     usize chars       = 0;
     usize lines       = 1;
 
